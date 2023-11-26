@@ -25,19 +25,26 @@ def unzip_data():
         logging.error("The file 'data.zip' does not exist.")
 
 def get_merged_data():
-    # Check that data is unzipped and in the correct location
-    unzip_data()
-    
-    # Load datasets locally
-    is_churn_df = pd.read_csv("Datasets/is_churn.csv")
-    members_df = pd.read_csv("Datasets/members.csv")
-    transactions_df = pd.read_csv("Datasets/transactions.csv")
+    # Check if the merged data file exists
+    merged_data_path = "Datasets/merged_data.csv"
+    if os.path.exists(merged_data_path):
+        # Load the merged data
+        merged_data = pd.read_csv(merged_data_path)
+        logging.info("Merged data loaded successfully.")
+    else: 
+        # Check that data is unzipped and in the correct location
+        unzip_data()
+        
+        # Load datasets locally
+        is_churn_df = pd.read_csv("Datasets/is_churn.csv")
+        members_df = pd.read_csv("Datasets/members.csv")
+        transactions_df = pd.read_csv("Datasets/transactions.csv")
 
-    # Merge all datasets on 'msno' column
-    merged_data = is_churn_df.merge(members_df, on='msno').merge(transactions_df, on='msno')
-    # Save the merged dataframe to a CSV file
-    merged_data.to_csv('Datasets/merged_data.csv', index=False)
-    logging.info("Data merged and saved successfully.")
+        # Merge all datasets on 'msno' column
+        merged_data = is_churn_df.merge(members_df, on='msno').merge(transactions_df, on='msno')
+        # Save the merged dataframe to a CSV file
+        merged_data.to_csv('Datasets/merged_data.csv', index=False)
+        logging.info("Data merged and saved successfully.")
     
     return merged_data
 
