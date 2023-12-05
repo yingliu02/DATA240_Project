@@ -11,30 +11,30 @@ import optuna
 from optuna.integration import PyTorchLightningPruningCallback
 
 class EnhancedChurnPredictor(pl.LightningModule):
-    def __init__(self, input_size, hidden_size, output_size, batch_size, nheads, num_layers, max_epochs):
+    def __init__(self, input_size, hidden_size, output_size, batch_size, max_epochs, lr, weight_decay, dropout_rate):
         super(EnhancedChurnPredictor, self).__init__()
         self.save_hyperparameters()
         self.batch_size = batch_size
 
         self.layer1 = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
+            nn.Linear(14, hidden_size),
             nn.BatchNorm1d(hidden_size),
             nn.LeakyReLU(),
-            nn.Dropout(p=0.2)
+            nn.Dropout(p=dropout_rate)
         )
         
         self.layer2 = nn.Sequential(
             nn.Linear(hidden_size, hidden_size * 2),
             nn.BatchNorm1d(hidden_size * 2),
             nn.LeakyReLU(),
-            nn.Dropout(p=0.2)
+            nn.Dropout(p=dropout_rate)
         )
         
         self.layer3 = nn.Sequential(
             nn.Linear(hidden_size * 2, hidden_size * 4),
             nn.BatchNorm1d(hidden_size * 4),
             nn.LeakyReLU(),
-            nn.Dropout(p=0.2)
+            nn.Dropout(p=dropout_rate)
         )
         
         self.layer4 = nn.Linear(hidden_size * 4, output_size)
@@ -55,6 +55,12 @@ class EnhancedChurnPredictor(pl.LightningModule):
         y_hat = self(x)
         loss = F.binary_cross_entropy(y_hat, y)
         self.log('train_loss', loss)
+
+        # Compute and log accuracy
+        y_pred = torch.round(y_hat)
+        y_true = y.int()
+        acc = accuracy(y_pred, y_true, 'binary')
+        self.log('train_acc', acc)
         
          # Gradient clipping
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
@@ -110,36 +116,20 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
 
-# Define the StandardScaler instance
-scaler = StandardScaler()
-
-def split_data():
-    # Load data
-    data = pd.read_csv('../../Datasets/synthetic_data.csv')
-
-    # Preprocess data
-    X = data.drop(['is_churn'], axis=1)
-    y = data['is_churn']
-    
-    # Split data into training, validation and testing sets
-    X_temp, X_test, y_temp, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    X_train, X_val, y_train, y_val = train_test_split(X_temp, y_temp, test_size=0.25, random_state=42) # 0.25 x 0.8 = 0.2
-    
-    scaler.fit(X_train)
-
-    return X_train, y_train, X_val, y_val, X_test, y_test
+scaler = None
 
 def train_dataloader(batch_size):
-    X_train, y_train, X_val, y_val, _, _ = split_data()
+    global scaler
 
-    # Fit and transform the training data
-    X_train = scaler.fit_transform(X_train)
-    X_val = scaler.transform(X_val)
+    # Standardize data
+    scaler = StandardScaler()
+    X_train_standard = scaler.fit_transform(X_train)
+    X_val_standard = scaler.transform(X_val)
 
     # Convert data into PyTorch tensors
-    X_train_tensor = torch.tensor(X_train, dtype=torch.float)
+    X_train_tensor = torch.tensor(X_train_standard, dtype=torch.float)
     y_train_tensor = torch.tensor(y_train.values, dtype=torch.float)
-    X_val_tensor = torch.tensor(X_val, dtype=torch.float)
+    X_val_tensor = torch.tensor(X_val_standard, dtype=torch.float)
     y_val_tensor = torch.tensor(y_val.values, dtype=torch.float)
 
     # Create data loaders
@@ -148,62 +138,92 @@ def train_dataloader(batch_size):
     return [DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, persistent_workers=True), 
         DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=4, persistent_workers=True)]
     
-def test_dataloader():
-    _, _, _, _, X_test, y_test = split_data()
-
-    # Use the fitted scaler to transform the test data
-    X_test = scaler.transform(X_test)
+def test_dataloader(batch_size):
+    global scaler
+    X_test_standard = scaler.transform(X_test)  # Standardize test data
 
     # Convert data into PyTorch tensors
-    X_test_tensor = torch.tensor(X_test, dtype=torch.float)
+    X_test_tensor = torch.tensor(X_test_standard, dtype=torch.float)
     y_test_tensor = torch.tensor(y_test.values, dtype=torch.float)
 
     # Create data loaders
     test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
-    return DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=4, persistent_workers=True)
+    return DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=4, persistent_workers=True)
+
+# Define the StandardScaler instance
+scaler = StandardScaler()
+
+def objective(trial):
+    # Hyperparameters to be tuned by Optuna.
+    batch_size = trial.suggest_categorical('batch_size', [32, 64, 128])
+    hidden_size = trial.suggest_categorical('hidden_size', [64, 128, 256])
+    lr = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
+    weight_decay = trial.suggest_float('weight_decay', 1e-10, 1e-3, log=True)
+    dropout_rate = trial.suggest_float('dropout_rate', 0.1, 0.5)
     
+    # Model creation using the suggested hyperparameters.
+    model = EnhancedChurnPredictor(
+        input_size=14, 
+        hidden_size=hidden_size, 
+        output_size=1, 
+        batch_size=batch_size, 
+        max_epochs=5,
+        lr=lr,
+        weight_decay=weight_decay,
+        dropout_rate=dropout_rate
+    )
+    
+    [train_data, val_data] = train_dataloader(batch_size)
+    
+    # Create the trainer with the current trial's hyperparameters.
+    trainer = pl.Trainer(
+        logger=True,
+        limit_val_batches=0.1, # Use a small portion of validation data for faster experiments.
+        callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_acc")],
+        max_epochs=5
+    )
+    
+    # Execute training and validation.
+    trainer.fit(model, train_data, val_data)
+    
+    # Return the best validation AUROC.
+    return trainer.callback_metrics["val_acc"].item()
+
 if __name__ == '__main__':
+    merged_raw_data_url = 'https://drive.google.com/file/d/1WDfh8HLYOtUNuhRZqKCScd1qb4l9sqyj/view?usp=sharing'
+    merged_raw_data_url = 'https://drive.google.com/uc?id=' + merged_raw_data_url.split('/')[-2]
 
-    def objective(trial):
-        # Hyperparameters to be tuned by Optuna.
-        batch_size = trial.suggest_categorical('batch_size', [32, 64, 128])
-        nheads = trial.suggest_categorical('nheads', [2, 4, 8])
-        num_layers = trial.suggest_int('num_layers', 1, 3)
-        hidden_size = trial.suggest_categorical('hidden_size', [64, 128, 256])
-        lr = trial.suggest_float('lr', 1e-5, 1e-1, log=True)
-        weight_decay = trial.suggest_float('weight_decay', 1e-10, 1e-3, log=True)
-        dropout_rate = trial.suggest_float('dropout_rate', 0.1, 0.5)
-        
-        # Model creation using the suggested hyperparameters.
-        model = EnhancedChurnPredictor(
-            input_size=78, 
-            hidden_size=hidden_size, 
-            output_size=1, 
-            batch_size=batch_size, 
-            nheads=2,  # Reduced number of heads
-            num_layers=1,  # Reduced number of layers
-            max_epochs=3
-        )
-        
-        [train_data, val_data] = train_dataloader(batch_size)
-        
-        # Create the trainer with the current trial's hyperparameters.
-        trainer = pl.Trainer(
-            logger=True,
-            limit_val_batches=0.1, # Use a small portion of validation data for faster experiments.
-            callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_auroc")],
-            max_epochs=3
-        )
-        
-        # Execute training and validation.
-        trainer.fit(model, train_data, val_data)
-        
-        # Return the best validation AUROC.
-        return trainer.callback_metrics["val_auroc"].item()
+    df = pd.read_csv(merged_raw_data_url)
+    df = df.set_index('msno')
+    df.head()
 
-    # Create a study object and optimize the objective function.
-    study = optuna.create_study(direction='maximize')
-    study.optimize(objective, n_trials=100)
+    from sklearn.model_selection import train_test_split
+    from imblearn.under_sampling import RandomUnderSampler
 
-    # Print the result.
+    df = pd.read_csv(merged_raw_data_url)
+    df.drop('msno', axis=1, inplace=True)
+    X = df.drop(['is_churn'], axis=1)
+    y = df['is_churn']
+
+    # Split the data into training and testing sets
+    X_temp, X_test, y_temp, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    X_train, X_val, y_train, y_val = train_test_split(X_temp, y_temp, test_size=0.25, random_state=42, stratify=y_temp)
+    # Combine X_train and y_train into a single DataFrame for undersampling
+    train_data = pd.concat([X_train, y_train], axis=1)
+
+    # Identify the minority class label
+    minority_class_label = train_data['is_churn'].value_counts().idxmin()
+
+    # Train and test the model with the original data
+    study = optuna.create_study(direction="maximize")
+    study.optimize(lambda trial: objective(trial), n_trials=10)
     print(study.best_trial)
+
+    # # Apply random undersampling on imbalanced target data
+    # undersampler = RandomUnderSampler(sampling_strategy='auto', random_state=42)
+    # X_resampled, y_resampled = undersampler.fit_resample(X_train, y_train)
+
+    # # Train and test the model with the resampled data
+    # resampled_study = optuna.create_study(direction="maximize")
+    # resampled_study.optimize(lambda trial: objective(trial, X_resampled, y_resampled), n_trials=10)
+    # print(resampled_study.best_trial)
