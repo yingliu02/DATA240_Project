@@ -17,37 +17,17 @@ class EnhancedChurnPredictor(pl.LightningModule):
         self.batch_size = batch_size
 
         self.layer1 = nn.Sequential(
-            nn.Linear(14, hidden_size),
-            nn.BatchNorm1d(hidden_size),
-            nn.LeakyReLU(),
-            nn.Dropout(p=dropout_rate)
+            nn.Linear(input_size, hidden_size),
+            nn.ReLU()
         )
         
-        self.layer2 = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size * 2),
-            nn.BatchNorm1d(hidden_size * 2),
-            nn.LeakyReLU(),
-            nn.Dropout(p=dropout_rate)
-        )
-        
-        self.layer3 = nn.Sequential(
-            nn.Linear(hidden_size * 2, hidden_size * 4),
-            nn.BatchNorm1d(hidden_size * 4),
-            nn.LeakyReLU(),
-            nn.Dropout(p=dropout_rate)
-        )
-        
-        self.layer4 = nn.Linear(hidden_size * 4, output_size)
+        self.output_layer = nn.Linear(hidden_size, output_size)
         
         self.auroc = AUROC(task='binary')
 
     def forward(self, x):
         x = self.layer1(x)
-        
-        x2 = self.layer2(x)
-        x3 = self.layer3(x2)
-        
-        x = torch.sigmoid(self.layer4(x3))
+        x = torch.sigmoid(self.output_layer(x))
         return x.squeeze()
 
     def training_step(self, batch, batch_idx):

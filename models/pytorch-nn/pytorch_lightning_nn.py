@@ -15,18 +15,13 @@ class ChurnPredictor(pl.LightningModule):
         self.layer1 = nn.Linear(input_size, hidden_size)
         self.batch_norm1 = nn.BatchNorm1d(hidden_size)
         self.dropout1 = nn.Dropout(p=0.3)
-        self.layer2 = nn.Linear(hidden_size, hidden_size)
-        self.batch_norm2 = nn.BatchNorm1d(hidden_size)
-        self.dropout2 = nn.Dropout(p=0.3)
-        self.layer3 = nn.Linear(hidden_size, output_size)
+        self.layer2 = nn.Linear(hidden_size, 1)
         self.batch_size = batch_size 
 
     def forward(self, x):
         x = F.leaky_relu(self.batch_norm1(self.layer1(x)))
         x = self.dropout1(x)
-        x = F.leaky_relu(self.batch_norm2(self.layer2(x)))
-        x = self.dropout2(x)
-        x = torch.sigmoid(self.layer3(x))
+        x = torch.sigmoid(self.layer2(x))
         return x.squeeze()
 
     def training_step(self, batch, batch_idx):

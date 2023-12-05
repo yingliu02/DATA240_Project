@@ -17,37 +17,17 @@ class EnhancedChurnPredictor(pl.LightningModule):
         self.batch_size = batch_size
 
         self.layer1 = nn.Sequential(
-            nn.Linear(14, hidden_size),
-            nn.BatchNorm1d(hidden_size),
-            nn.LeakyReLU(),
-            nn.Dropout(p=dropout_rate)
+            nn.Linear(input_size, hidden_size),
+            nn.ReLU()
         )
         
-        self.layer2 = nn.Sequential(
-            nn.Linear(hidden_size, hidden_size * 2),
-            nn.BatchNorm1d(hidden_size * 2),
-            nn.LeakyReLU(),
-            nn.Dropout(p=dropout_rate)
-        )
-        
-        self.layer3 = nn.Sequential(
-            nn.Linear(hidden_size * 2, hidden_size * 4),
-            nn.BatchNorm1d(hidden_size * 4),
-            nn.LeakyReLU(),
-            nn.Dropout(p=dropout_rate)
-        )
-        
-        self.layer4 = nn.Linear(hidden_size * 4, output_size)
+        self.output_layer = nn.Linear(hidden_size, output_size)
         
         self.auroc = AUROC(task='binary')
 
     def forward(self, x):
         x = self.layer1(x)
-        
-        x2 = self.layer2(x)
-        x3 = self.layer3(x2)
-        
-        x = torch.sigmoid(self.layer4(x3))
+        x = torch.sigmoid(self.output_layer(x))
         return x.squeeze()
 
     def training_step(self, batch, batch_idx):
@@ -107,9 +87,8 @@ class EnhancedChurnPredictor(pl.LightningModule):
         return {'val_loss': loss, 'val_acc': acc, 'val_prec': prec, 'val_rec': rec, 'val_auroc': auroc_score}
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3, weight_decay=1e-4)
-        scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=0.01, steps_per_epoch=len(train_dataloader(self.batch_size)), epochs=self.hparams.max_epochs)
-        return [optimizer], [scheduler]
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr, weight_decay=self.hparams.weight_decay)
+        return optimizer
 
 
 from sklearn.model_selection import train_test_split
@@ -179,15 +158,15 @@ def objective(trial):
     trainer = pl.Trainer(
         logger=True,
         limit_val_batches=0.1, # Use a small portion of validation data for faster experiments.
-        callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_acc")],
-        max_epochs=5
+        callbacks=[PyTorchLightningPruningCallback(trial, monitor="val_loss")],
+        max_epochs=10
     )
     
     # Execute training and validation.
     trainer.fit(model, train_data, val_data)
     
     # Return the best validation AUROC.
-    return trainer.callback_metrics["val_acc"].item()
+    return trainer.callback_metrics["val_loss"].item()
 
 if __name__ == '__main__':
     merged_raw_data_url = 'https://drive.google.com/file/d/1WDfh8HLYOtUNuhRZqKCScd1qb4l9sqyj/view?usp=sharing'
@@ -224,6 +203,6 @@ if __name__ == '__main__':
     X_train, y_train = undersampler.fit_resample(X_train, y_train)
 
     # Train and test the model with the resampled data
-    resampled_study = optuna.create_study(direction="maximize")
+    resampled_study = optuna.create_study(direction="minimize")
     resampled_study.optimize(lambda trial: objective(trial), n_trials=10)
     print(resampled_study.best_trial)
