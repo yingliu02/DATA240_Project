@@ -18,10 +18,10 @@ Dropout is also used after the first and second layers as a regularization techn
 
 The parameters for the model are chosen based on the problem requirements and the nature of the input data:
 
-- `input_size`: This is set to 14, which likely corresponds to the number of features in the input data.
-- `hidden_size`: This is set to 20, which is a hyperparameter that determines the size of the hidden layers in the network. The optimal value for this parameter would typically be determined through experimentation.
+- `input_size`: This is set to 14, which corresponds to the number of features in the input data.
+- `hidden_size`: This is set to 20, which is a hyperparameter that determines the size of the hidden layers in the network. The optimal value for this parameter would typically be determined through experimentation, which we do in the enhanced version of this model.
 - `output_size`: This is set to 1, which is appropriate for a binary classification problem where the model needs to output a single probability.
-- `batch_size`: This is set to 64, which is a common choice for the batch size. The batch size is another hyperparameter that can be tuned, and it determines the number of training examples used in one iteration of model training.
+- `batch_size`: This is set to 64, which is a common choice for the batch size. The batch size is another hyperparameter that can be tuned, and it determines the number of training examples used in one iteration of model training. We tune this parameter in the enhanced version of this model.
 
 The learning rate for the Adam optimizer is set to 1e-3, and the scheduler decreases the learning rate by a factor of 0.9 every epoch. These are common settings that often work well in practice.
 
@@ -43,18 +43,5 @@ The model is trained for 10 epochs using `pl.Trainer`. After training, the model
 5 | dropout2    | Dropout     | 0     
 6 | layer3      | Linear      | 21    
 --------------------------------------------
-
-
-### Model Evaluation
-
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃        Test metric        ┃       DataLoader 0        ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│         test_acc          │            1.0            │
-│         test_loss         │  1.2573512321978342e-05   │
-│         test_prec         │     0.959930419921875     │
-│         test_rec          │     0.959930419921875     │
-└───────────────────────────┴───────────────────────────┘
-
 
 ![Alt text](image.png)

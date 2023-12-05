@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from torchmetrics.functional import accuracy, precision, recall
 
-class AdvancedChurnPredictor(pl.LightningModule):
+class ChurnPredictor(pl.LightningModule):
     def __init__(self, input_size, hidden_size, output_size, batch_size):
         super(AdvancedChurnPredictor, self).__init__()
         self.layer1 = nn.Linear(input_size, hidden_size)
@@ -85,7 +85,7 @@ import pandas as pd
 
 def split_data():
     # Load data
-    data = pd.read_csv('../../Datasets/merged_data.csv')
+    data = pd.read_csv('../../Datasets/resampled_data.csv')
 
     # Preprocess data
     X = data.drop(['is_churn', 'msno'], axis=1)
