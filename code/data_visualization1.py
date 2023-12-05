@@ -21,7 +21,7 @@ import matplotlib.dates as mdates
 
 if __name__ == '__main__':
 
-    members = pd.read_csv("/Users/liuying/Downloads/members_v3.csv")
+    members = pd.read_csv("members_v3.csv")
 
     print(members.head())
     members.describe()
@@ -82,7 +82,7 @@ if __name__ == '__main__':
 
     members.head()
 
-    transac = pd.read_csv('/Users/liuying/Downloads/transactions.csv')
+    transac = pd.read_csv('transactions.csv')
     transac.head()
     transac.info()
 
@@ -147,7 +147,7 @@ if __name__ == '__main__':
     unique_transactions_user_count = transac["msno"].nunique()
     print(f"Unique users in transaction database: {unique_transactions_user_count:,}")
 
-    logs = pd.read_csv('/Users/liuying/Downloads/user_logs.csv',nrows=700000)
+    logs = pd.read_csv('user_logs.csv',nrows=700000)
     logs.info()
     logs.describe()
 
@@ -187,7 +187,7 @@ if __name__ == '__main__':
     plt.title('Density of Songs Played by % Played')
     plt.show()
 
-    churn = pd.read_csv("/Users/liuying/Downloads/train.csv")
+    churn = pd.read_csv("train.csv")
     #churn.rename({"msno": "user_id"}, axis=1, inplace=True)
     #churn["is_churn"] = churn.is_churn.astype(np.uint8)
     churn.head(10)
