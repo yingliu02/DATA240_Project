@@ -28,10 +28,15 @@ def pull_data():
         merged_raw_data_url = 'https://drive.google.com/file/d/1WDfh8HLYOtUNuhRZqKCScd1qb4l9sqyj/view?usp=sharing'
         merged_raw_data_url = 'https://drive.google.com/uc?id=' + merged_raw_data_url.split('/')[-2]
         df = pd.read_csv(merged_raw_data_url)
-        df.drop('msno', axis=1, inplace=True)
         df.to_csv('data/merged_raw_data.csv')
-    X = df.drop(['is_churn'], axis=1)
+    df = df.set_index('msno')
+    # drop the Unnamed:0 column
+    try: 
+        df.drop('Unnamed: 0', axis=1, inplace=True)
+    except:
+        pass
     y = df['is_churn']
+    X = df.drop(['is_churn'], axis=1)
 
     return X, y
 
@@ -44,6 +49,7 @@ if __name__ == '__main__':
     balanced = balanced.lower() in ['true', '1', 'yes']
 
     X, y = pull_data()
+    print(X.columns)
     X_train, X_val, X_test, y_train, y_val, y_test = split_data(X, y)
     if balanced:
         X_train, y_train = resample_data(X_train, y_train)
@@ -61,7 +67,7 @@ if __name__ == '__main__':
         from enhanced_nn import objective
         # Run a hyperparameter optimization study to minimize the validation loss
         study = optuna.create_study(direction="minimize")
-        study.optimize(lambda trial: objective(trial), n_trials=100)
+        study.optimize(lambda trial: objective(trial, X_train, y_train, X_val, y_val), n_trials=100)
         print(resampled_study.best_trial)
     else:
         print('invalid model name, must be simple_nn or enhanced_nn')
