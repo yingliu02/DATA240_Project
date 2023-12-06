@@ -75,7 +75,7 @@ import pandas as pd
 
 scaler = None
 
-def train_dataloader(X_train, y_train):
+def train_dataloader(X_train, y_train, X_val, y_val):
     global scaler
 
     # Standardize data
@@ -107,6 +107,8 @@ def test_dataloader(X_test, y_test):
     test_dataset = TensorDataset(X_test_tensor, y_test_tensor)
     return DataLoader(test_dataset, batch_size=64, shuffle=False, num_workers=4, persistent_workers=True)
 
+
+
 if __name__ == '__main__':
     merged_raw_data_url = 'https://drive.google.com/file/d/1WDfh8HLYOtUNuhRZqKCScd1qb4l9sqyj/view?usp=sharing'
     merged_raw_data_url = 'https://drive.google.com/uc?id=' + merged_raw_data_url.split('/')[-2]
@@ -115,8 +117,7 @@ if __name__ == '__main__':
     df = df.set_index('msno')
     df.head()
 
-    from sklearn.model_selection import train_test_split
-    from imblearn.under_sampling import RandomUnderSampler
+    
 
     df = pd.read_csv(merged_raw_data_url)
     df.drop('msno', axis=1, inplace=True)

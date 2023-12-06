@@ -19,14 +19,17 @@ def split_data(X, y):
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 def pull_data():
+    if not os.path.exists('data'):
+        os.makedirs('data')
     # check if data is already downloaded
-    if os.path.exists('merged_raw_data.csv'):
-        df = pd.read_csv('merged_raw_data.csv')
+    if os.path.exists('data/merged_raw_data.csv'):
+        df = pd.read_csv('data/merged_raw_data.csv')
     else:
         merged_raw_data_url = 'https://drive.google.com/file/d/1WDfh8HLYOtUNuhRZqKCScd1qb4l9sqyj/view?usp=sharing'
         merged_raw_data_url = 'https://drive.google.com/uc?id=' + merged_raw_data_url.split('/')[-2]
         df = pd.read_csv(merged_raw_data_url)
-    df.drop('msno', axis=1, inplace=True)
+        df.drop('msno', axis=1, inplace=True)
+        df.to_csv('data/merged_raw_data.csv')
     X = df.drop(['is_churn'], axis=1)
     y = df['is_churn']
 
@@ -46,16 +49,16 @@ if __name__ == '__main__':
         X_train, y_train = resample_data(X_train, y_train)
     
     if model_name == 'simple_nn':
-        from .simple_nn import train_dataloader, test_dataloader, ChurnPredictor
+        from simple_nn import train_dataloader, test_dataloader, ChurnPredictor
         # Train the model
         model = ChurnPredictor(input_size=14, hidden_size=20, output_size=1, batch_size=64)
-        trainer = pl.Trainer(max_epochs=10, progress_bar_refresh_rate=20)
+        trainer = pl.Trainer(max_epochs=20)
         [train_data, val_data] = train_dataloader(X_train, y_train, X_val, y_val)
         trainer.fit(model, train_data, val_data)
         # Test the model
         trainer.test(model, dataloaders=test_dataloader(X_test, y_test))
     elif model_name == 'enhanced_nn':
-        from .enhanced_nn import objective
+        from enhanced_nn import objective
         # Run a hyperparameter optimization study to minimize the validation loss
         study = optuna.create_study(direction="minimize")
         study.optimize(lambda trial: objective(trial), n_trials=100)
