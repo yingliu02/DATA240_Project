@@ -97,7 +97,7 @@ import pandas as pd
 
 scaler = None
 
-def train_dataloader(batch_size):
+def train_dataloader(X_train, y_train, X_val, y_val, batch_size):
     global scaler
 
     # Standardize data
@@ -132,7 +132,7 @@ def test_dataloader(batch_size):
 # Define the StandardScaler instance
 scaler = StandardScaler()
 
-def objective(trial):
+def objective(trial, X_train, y_train, X_val, y_val):
     # Hyperparameters to be tuned by Optuna.
     batch_size = trial.suggest_categorical('batch_size', [32, 64, 128])
     hidden_size = trial.suggest_categorical('hidden_size', [64, 128, 256])
@@ -152,7 +152,7 @@ def objective(trial):
         dropout_rate=dropout_rate
     )
     
-    [train_data, val_data] = train_dataloader(batch_size)
+    [train_data, val_data] = train_dataloader(X_train, y_train, X_val, y_val, batch_size)
     
     # Create the trainer with the current trial's hyperparameters.
     trainer = pl.Trainer(
@@ -204,5 +204,5 @@ if __name__ == '__main__':
 
     # Train and test the model with the resampled data
     resampled_study = optuna.create_study(direction="minimize")
-    resampled_study.optimize(lambda trial: objective(trial), n_trials=10)
+    resampled_study.optimize(lambda trial: objective(trial), n_trials=100)
     print(resampled_study.best_trial)
